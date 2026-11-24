@@ -3826,6 +3826,10 @@ public class SonosManager {
                 // The resolved URL is pre-signed and will expire. Record which
                 // service item produced it so an expired queue entry can be
                 // re-resolved instead of needing a manual re-add.
+                if sid == ServiceID.relisten {
+                    ResolvedPlaybackRegistry.rememberRelisten(playURL: resolved, title: item.title,
+                        artist: item.artist ?? "", album: item.album ?? "", art: item.albumArtURI)
+                }
                 ResolvedPlaybackRegistry.remember(playURL: resolved, sid: sid, itemID: itemID)
                 return (resolved, "")
             }
@@ -4359,6 +4363,13 @@ extension SonosManager: TransportStrategyDelegate {
             if metadata.title.isEmpty || TrackMetadata.isTechnicalName(metadata.title),
                let t = TidalCatalog.title(forURI: uri) { metadata.title = t }
             if metadata.artist.isEmpty, let a = TidalCatalog.artist(forURI: uri) { metadata.artist = a }
+        }
+
+        if let uri = metadata.trackURI, let saved = ResolvedPlaybackRegistry.relistenMetadata(playURL: uri) {
+            metadata.title = saved.title
+            metadata.artist = saved.artist
+            metadata.album = saved.album
+            metadata.albumArtURI = saved.art
         }
 
         // Line-In: `x-rincon-stream:RINCON_<sourceID>` is an analog input from

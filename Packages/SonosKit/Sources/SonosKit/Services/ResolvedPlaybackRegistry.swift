@@ -83,6 +83,23 @@ public enum ResolvedPlaybackRegistry {
         return (sid, parts[1])
     }
 
+    public static func rememberRelisten(playURL: String, title: String, artist: String, album: String, art: String?) {
+        guard let key = key(forPlayURL: playURL) else { return }
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        var store = UserDefaults.standard.dictionary(forKey: "relistenTrackMetadata") as? [String: [String]] ?? [:]
+        store[key] = [title, artist, album, art ?? ""]
+        if store.count > capacity, let first = store.keys.first(where: { $0 != key }) { store.removeValue(forKey: first) }
+        UserDefaults.standard.set(store, forKey: "relistenTrackMetadata")
+    }
+
+    public static func relistenMetadata(playURL: String) -> (title: String, artist: String, album: String, art: String?)? {
+        guard let key = key(forPlayURL: playURL),
+              let store = UserDefaults.standard.dictionary(forKey: "relistenTrackMetadata") as? [String: [String]],
+              let fields = store[key], fields.count == 4 else { return nil }
+        return (fields[0], fields[1], fields[2], fields[3].isEmpty ? nil : fields[3])
+    }
+
     /// Drops every entry. Exposed for the cache-clearing control in Settings.
     public static func removeAll() {
         storeLock.lock()
