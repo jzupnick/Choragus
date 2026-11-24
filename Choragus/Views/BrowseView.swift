@@ -27,7 +27,7 @@ struct BrowseView: View {
         return id == "APPLEMUSICPROMPT:" || id == "APPLEMUSICKIT:" ||
                id == "TUNEINPROMPT:" ||
                id == "CALMRADIOPROMPT:" || id == "SONOSRADIOPROMPT:" ||
-               id == "SUNOPROMPT:" || id.hasPrefix("SOMAFMPROMPT:") ||
+               id == "SUNOPROMPT:" || id.hasPrefix("SOMAFMPROMPT:") || id.hasPrefix("RELISTENPROMPT:") ||
                id == "RECENT:" || id.hasPrefix("SMAPISEARCHPROMPT:") ||
                id.hasPrefix("SMAPI:") || id.hasPrefix("SERVICESEARCH:")
     }
@@ -140,6 +140,16 @@ struct BrowseView: View {
                     PlexDirectBrowseView(group: group)
                 } else if current.objectID == "LINEIN:" {
                     LineInBrowseView(group: group)
+                } else if current.objectID.hasPrefix("RELISTENPROMPT:") {
+                    BrowseListView(
+                        title: "Relisten", objectID: BrowseID.smapiRoot, group: group,
+                        sonosManager: sonosManager, smapiServiceID: ServiceID.relisten,
+                        smapiServiceURI: smapiManager.availableServices.first(where: { $0.id == ServiceID.relisten })?.secureUri,
+                        smapiAuthType: "Anonymous", azLetter: $azLetter, azCount: $azCount,
+                        onNavigate: { dest in breadcrumbs.append(dest) }
+                    )
+                    .id(current.objectID)
+                    .choragusServices(sonosManager)
                 } else if current.objectID.hasPrefix("SOMAFMPROMPT:") {
                     // SomaFM is Auth="Anonymous" — browse via the generic
                     // BrowseListView, which uses the anonymous SMAPI path
@@ -346,6 +356,7 @@ struct BrowseSectionsView: View {
     @AppStorage(UDKey.tuneInSearchEnabled) private var tuneInEnabled = false
     @AppStorage(UDKey.calmRadioEnabled) private var calmRadioEnabled = false
     @AppStorage(UDKey.somaFMEnabled) private var somaFMEnabled = false
+    @AppStorage(UDKey.relistenEnabled) private var relistenEnabled = false
     @AppStorage(UDKey.sunoEnabled) private var sunoEnabled = false
     @AppStorage(UDKey.appleMusicSearchEnabled) private var appleMusicEnabled = false
     @AppStorage(UDKey.appleMusicKitConnected) private var appleMusicKitConnected = false
@@ -400,6 +411,9 @@ struct BrowseSectionsView: View {
         }
         if calmRadioEnabled {
             entries.append(ServiceSearchEntry(key: "calmradio", title: "Calm Radio", objectID: "CALMRADIOPROMPT:", icon: "leaf"))
+        }
+        if relistenEnabled {
+            entries.append(ServiceSearchEntry(key: "relisten", title: "Relisten", objectID: "RELISTENPROMPT:", icon: "music.note"))
         }
         if somaFMEnabled {
             entries.append(ServiceSearchEntry(key: "somafm", title: "SomaFM", objectID: "SOMAFMPROMPT:", icon: "radio"))

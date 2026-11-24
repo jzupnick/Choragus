@@ -98,6 +98,7 @@ public enum ServiceID {
     /// SomaFM Radio — `Auth="Anonymous"`, browses without a token via the
     /// anonymous SMAPI path. Surfaced as a toggle-gated browse entry.
     public static let somaFM = 516
+    public static let relisten = 270
     /// App-internal pseudo-sid for Suno (suno.com). Suno is NOT a Sonos SMAPI
     /// service — playback resolves public CDN URLs — so this id only drives the
     /// Music Services toggle row and never reaches a SMAPI call. Chosen well
@@ -128,6 +129,7 @@ public enum ServiceID {
         calmRadio: "Calm Radio",
         soundCloud: "SoundCloud",
         somaFM: "SomaFM Radio",
+        relisten: "Relisten",
         tidal: "TIDAL",
         amazonMusic: "Amazon Music",
         appleMusic: "Apple Music",
@@ -417,6 +419,7 @@ public enum UDKey {
     public static let tuneInSearchEnabled = "tuneInSearchEnabled"
     public static let calmRadioEnabled = "calmRadioEnabled"
     public static let somaFMEnabled = "somaFMEnabled"
+    public static let relistenEnabled = "relistenEnabled"
     public static let sunoEnabled = "sunoEnabled"
     /// Master toggle for UPnP/DLNA media-server discovery and browsing.
     public static let mediaServersEnabled = "mediaServers.enabled"

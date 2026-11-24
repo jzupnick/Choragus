@@ -10,6 +10,7 @@ struct MusicServicesSettingsSection: View {
     @AppStorage(UDKey.tuneInSearchEnabled) private var tuneInEnabled = false
     @AppStorage(UDKey.calmRadioEnabled) private var calmRadioEnabled = false
     @AppStorage(UDKey.somaFMEnabled) private var somaFMEnabled = false
+    @AppStorage(UDKey.relistenEnabled) private var relistenEnabled = false
     @AppStorage(UDKey.sunoEnabled) private var sunoEnabled = false
     @AppStorage(UDKey.appleMusicSearchEnabled) private var appleMusicEnabled = false
     @AppStorage(UDKey.sonosRadioEnabled) private var sonosRadioEnabled = false
@@ -60,6 +61,7 @@ struct MusicServicesSettingsSection: View {
         ServiceID.tuneIn,
         ServiceID.calmRadio,
         ServiceID.somaFM,
+        ServiceID.relisten,
         ServiceID.sunoPseudo,
         ServiceID.appleMusic,
         ServiceID.sonosRadio,
@@ -92,6 +94,7 @@ struct MusicServicesSettingsSection: View {
         .init(key: "204",       serviceID: ServiceID.appleMusic, name: "Apple Music",  alternativeIDs: [], plexFlavor: .none),
         .init(key: "254",       serviceID: ServiceID.tuneIn,     name: "TuneIn",       alternativeIDs: [], plexFlavor: .none),
         .init(key: "144",       serviceID: ServiceID.calmRadio,  name: "Calm Radio",   alternativeIDs: [], plexFlavor: .none),
+        .init(key: "270",       serviceID: ServiceID.relisten,   name: "Relisten",     alternativeIDs: [], plexFlavor: .none),
         .init(key: "516",       serviceID: ServiceID.somaFM,     name: "SomaFM",       alternativeIDs: [], plexFlavor: .none),
         .init(key: "suno",      serviceID: ServiceID.sunoPseudo, name: "suno.ai",      alternativeIDs: [], plexFlavor: .none),
         .init(key: "303",       serviceID: ServiceID.sonosRadio, name: "Sonos Radio",  alternativeIDs: [], plexFlavor: .none),
@@ -689,6 +692,7 @@ struct MusicServicesSettingsSection: View {
         if ids.contains(ServiceID.tuneIn) { return $tuneInEnabled }
         if ids.contains(ServiceID.calmRadio)  { return $calmRadioEnabled }
         if ids.contains(ServiceID.somaFM)     { return $somaFMEnabled }
+        if ids.contains(ServiceID.relisten)   { return $relistenEnabled }
         if ids.contains(ServiceID.sunoPseudo) { return $sunoEnabled }
         if ids.contains(ServiceID.appleMusic) { return $appleMusicEnabled }
         if ids.contains(ServiceID.sonosRadio) { return $sonosRadioEnabled }
