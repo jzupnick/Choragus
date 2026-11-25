@@ -74,6 +74,7 @@ struct NowPlayingView: View {
 
     private var transportState: TransportState { vm.transportState }
     private var trackMetadata: TrackMetadata { vm.trackMetadata }
+    @State private var appleMusicNotFound = false
     private var playMode: PlayMode { vm.playMode }
     private var hasTrack: Bool { vm.hasTrack }
 
@@ -526,6 +527,25 @@ struct NowPlayingView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
+
+                                Menu {
+                                    Button("Open Song in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .song, title: trackMetadata.title, artist: trackMetadata.artist)) } }
+                                    if !trackMetadata.artist.isEmpty {
+                                        Button("Open Artist in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .artist, title: trackMetadata.artist)) } }
+                                    }
+                                    if !trackMetadata.album.isEmpty {
+                                        Button("Open Album in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .album, title: trackMetadata.album, artist: trackMetadata.artist)) } }
+                                    }
+                                } label: {
+                                    Image(systemName: "music.note")
+                                }
+                                .menuStyle(.borderlessButton)
+                                .help("Open in Apple Music")
+                                .alert("No exact Apple Music match", isPresented: $appleMusicNotFound) {
+                                    Button("OK", role: .cancel) { }
+                                } message: {
+                                    Text("No exact match was found, or Apple Music search is unavailable.")
+                                }
 
                                 Button { starCurrentTrack() } label: {
                                     Image(systemName: isCurrentTrackStarred ? "star.fill" : "star")

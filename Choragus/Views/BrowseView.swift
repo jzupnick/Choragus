@@ -206,6 +206,50 @@ struct BrowseView: View {
     }
 }
 
+enum AppleMusicOpen {
+    enum Kind: String { case artist = "musicArtist", album, song }
+
+    @MainActor static func open(kind: Kind, title: String, artist: String = "") async -> Bool {
+        let title = title.replacingOccurrences(of: #"\s*\[\d+:\d+\]$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^\d+\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\.mp3$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        let term = kind == .artist ? title : "\(artist) \(title)"
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        var components = URLComponents(string: "https://itunes.apple.com/search")!
+        components.queryItems = [URLQueryItem(name: "term", value: term.lowercased()), URLQueryItem(name: "entity", value: kind.rawValue), URLQueryItem(name: "limit", value: "50")]
+        guard let url = components.url, let (data, _) = try? await URLSession.shared.data(from: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = object["results"] as? [[String: Any]] else { return false }
+        func normalized(_ value: String) -> String {
+            value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let titleKey = kind == .artist ? "artistName" : (kind == .album ? "collectionName" : "trackName")
+        let urlKey = kind == .artist ? "artistLinkUrl" : (kind == .album ? "collectionViewUrl" : "trackViewUrl")
+        guard let match = results.first(where: { row in
+            normalized(row[titleKey] as? String ?? "") == normalized(title) &&
+            (kind == .artist || artist.isEmpty || normalized(row["artistName"] as? String ?? "") == normalized(artist))
+        }), let link = (match[urlKey] ?? match["artistViewUrl"]) as? String, let target = URL(string: link) else { return false }
+        do {
+            _ = try await NSWorkspace.shared.open([target], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Music.app"), configuration: NSWorkspace.OpenConfiguration())
+            return true
+        } catch { return false }
+    }
+}
+
+private struct RelistenFavorite: Codable, Identifiable {
+    let id: String
+    let title: String
+
+    static func read(_ raw: String) -> [RelistenFavorite] {
+        (try? JSONDecoder().decode([RelistenFavorite].self, from: Data(raw.utf8))) ?? []
+    }
+    static func write(_ items: [RelistenFavorite]) -> String {
+        guard let data = try? JSONEncoder().encode(items) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
 struct BrowseDestination: Hashable {
     let title: String
     let objectID: String
@@ -357,6 +401,7 @@ struct BrowseSectionsView: View {
     @AppStorage(UDKey.calmRadioEnabled) private var calmRadioEnabled = false
     @AppStorage(UDKey.somaFMEnabled) private var somaFMEnabled = false
     @AppStorage(UDKey.relistenEnabled) private var relistenEnabled = false
+    @AppStorage("relistenFavorites") private var relistenFavorites = "[]"
     @AppStorage(UDKey.sunoEnabled) private var sunoEnabled = false
     @AppStorage(UDKey.appleMusicSearchEnabled) private var appleMusicEnabled = false
     @AppStorage(UDKey.appleMusicKitConnected) private var appleMusicKitConnected = false
@@ -618,10 +663,25 @@ struct BrowseSectionsView: View {
             !$0.objectID.hasPrefix("A:") && !$0.objectID.hasPrefix("S:")
                 && !$0.objectID.hasPrefix("MS:")   // shown under Choragus Sources
         }
-        if !nonLibrary.isEmpty {
+        let relistenSaved = RelistenFavorite.read(relistenFavorites)
+        if !nonLibrary.isEmpty || !relistenSaved.isEmpty {
             sectionCard {
                 CollapsibleSectionHeader(title: L10n.favorites, isExpanded: $favoritesExpanded)
                 if favoritesExpanded {
+                    ForEach(relistenSaved) { favorite in
+                        Button {
+                            let service = smapiManager.availableServices.first { $0.id == ServiceID.relisten }
+                            onNavigate(BrowseDestination(title: favorite.title, objectID: "SMAPI:\(ServiceID.relisten):\(favorite.id)", smapiService: service))
+                        } label: {
+                            Label(favorite.title, systemImage: "star.fill")
+                        }
+                        .buttonStyle(BrowseRowButtonStyle())
+                        .contextMenu {
+                            Button("Remove from Relisten Favorites", role: .destructive) {
+                                relistenFavorites = RelistenFavorite.write(relistenSaved.filter { $0.id != favorite.id })
+                            }
+                        }
+                    }
                     ForEach(nonLibrary) { section in
                         Button {
                             onNavigate(BrowseDestination(title: section.title, objectID: section.objectID))
@@ -785,8 +845,15 @@ struct BrowseListView: View {
     private var showsFilters: Bool { vm.showsFilters }
     private var availableFilters: [String] { vm.availableFilters }
     @State private var sortOrder: BrowseSortOption = .relevance
+    @State private var appleMusicNotFound = false
+    @AppStorage("relistenFavorites") private var relistenFavorites = "[]"
     private var filteredItems: [BrowseItem] { vm.filteredItems }
-    private var sortedItems: [BrowseItem] { sortOrder.apply(vm.filteredItems) }
+    private var sortItems: [BrowseItem] {
+        smapiServiceID == ServiceID.relisten ? RelistenCatalog.datedYears(vm.filteredItems) : vm.filteredItems
+    }
+    private var sortedItems: [BrowseItem] {
+        smapiServiceID == ServiceID.relisten ? RelistenCatalog.sortYears(sortItems, order: sortOrder) : sortOrder.apply(sortItems)
+    }
     private func serviceLabel(for item: BrowseItem) -> String? { vm.serviceLabel(for: item) }
 
     /// True when the (filtered) result list contains anything that can
@@ -915,7 +982,7 @@ struct BrowseListView: View {
                         Divider()
                     }
                     if !vm.filteredItems.isEmpty {
-                        BrowseSortPicker(items: vm.filteredItems, selection: $sortOrder)
+                        BrowseSortPicker(items: sortItems, selection: $sortOrder)
                         Divider()
                     }
 
@@ -1003,6 +1070,11 @@ struct BrowseListView: View {
                 }
                 }
             }
+        }
+        .alert("No exact Apple Music match", isPresented: $appleMusicNotFound) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("No exact match was found, or Apple Music search is unavailable.")
         }
         .onAppear {
             // Configure service search serial number for Apple Music
@@ -1115,6 +1187,27 @@ struct BrowseListView: View {
 
     @ViewBuilder
     private func contextMenuItems(for item: BrowseItem) -> some View {
+        let relistenID = SMAPIPrefix.strip(item.objectID, serviceID: ServiceID.relisten)
+        if item.itemClass == .musicArtist || (smapiServiceID == ServiceID.relisten && relistenID.hasPrefix("Artist:")) {
+            Button("Open Artist in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .artist, title: item.title)) } }
+        } else if item.itemClass == .musicAlbum {
+            Button("Open Album in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .album, title: item.title, artist: item.artist)) } }
+        } else if !item.isContainer {
+            Button("Open Song in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .song, title: item.title, artist: item.artist)) } }
+        }
+        if !item.artist.isEmpty {
+            Button("Open Artist in Apple Music") { Task { appleMusicNotFound = !(await AppleMusicOpen.open(kind: .artist, title: item.artist)) } }
+        }
+        if smapiServiceID == ServiceID.relisten && item.isContainer {
+            let id = SMAPIPrefix.strip(item.objectID, serviceID: ServiceID.relisten)
+            let saved = RelistenFavorite.read(relistenFavorites)
+            let exists = saved.contains { $0.id == id }
+            Button(exists ? "Remove from Relisten Favorites" : "Add to Relisten Favorites") {
+                let updated = exists ? saved.filter { $0.id != id } : saved + [RelistenFavorite(id: id, title: item.title)]
+                relistenFavorites = RelistenFavorite.write(updated)
+            }
+            Divider()
+        }
         if let group = group {
             let isRadio = item.resourceURI.map(URIPrefix.isRadio) ?? false ||
                           item.itemClass == .radioStation || item.itemClass == .radioShow

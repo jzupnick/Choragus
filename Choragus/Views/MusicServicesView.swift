@@ -10,6 +10,7 @@ struct MusicServicesSettingsSection: View {
     @AppStorage(UDKey.tuneInSearchEnabled) private var tuneInEnabled = false
     @AppStorage(UDKey.calmRadioEnabled) private var calmRadioEnabled = false
     @AppStorage(UDKey.somaFMEnabled) private var somaFMEnabled = false
+    @AppStorage("relistenPreferLossless") private var relistenPreferLossless = true
     @AppStorage(UDKey.relistenEnabled) private var relistenEnabled = false
     @AppStorage(UDKey.sunoEnabled) private var sunoEnabled = false
     @AppStorage(UDKey.appleMusicSearchEnabled) private var appleMusicEnabled = false
@@ -615,6 +616,12 @@ struct MusicServicesSettingsSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.leading, 18)
+            }
+            if service.serviceID == ServiceID.relisten {
+                Toggle("Prefer lossless when available", isOn: $relistenPreferLossless)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .padding(.leading, 18)
             }
             // What Plex – Remote depends on, stated here rather than as
             // a bare "no available servers" fault later: Plex's Sonos

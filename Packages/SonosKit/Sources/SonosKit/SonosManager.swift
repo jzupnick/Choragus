@@ -3803,7 +3803,9 @@ public class SonosManager {
               let sid = Int(trimmed[..<colon]) else { return (uri, meta) }
         let itemID = String(trimmed[trimmed.index(after: colon)...])
         do {
-            if let resolved = try await resolver(sid, itemID), !resolved.isEmpty {
+            if let source = try await resolver(sid, itemID), !source.isEmpty {
+                let preferLossless = UserDefaults.standard.object(forKey: "relistenPreferLossless") as? Bool ?? true
+                let resolved = sid == ServiceID.relisten && preferLossless ? (await RelistenLossless.resolve(source) ?? source) : source
                 // Only adopt a resolved URL that is a DIRECT stream. The whole
                 // point of this step is to swap a controller-authenticated
                 // service track (e.g. TIDAL → https://…tidal.com CDN) for a URL
