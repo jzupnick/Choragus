@@ -118,6 +118,8 @@ struct MenuBarPlayerView: View {
     @State private var selectedGroupID: String?
     @State private var isHoveringArt = false
     @State private var starRevision = 0
+    @State private var appleMusicFavoriteError: String?
+    @State private var appleMusicFavoriteInProgress = false
 
     private var selectedGroup: SonosGroup? {
         guard let id = selectedGroupID else { return sonosManager.groups.first }
@@ -334,6 +336,15 @@ struct MenuBarPlayerView: View {
                     .buttonStyle(.plain)
                     .disabled(trackMetadata.title.isEmpty)
                     .opacity(trackMetadata.title.isEmpty ? 0.3 : 1)
+                    .disabled(appleMusicFavoriteInProgress)
+                    .alert("Apple Music", isPresented: Binding(
+                        get: { appleMusicFavoriteError != nil },
+                        set: { if !$0 { appleMusicFavoriteError = nil } }
+                    )) {
+                        Button("OK", role: .cancel) { appleMusicFavoriteError = nil }
+                    } message: {
+                        Text(appleMusicFavoriteError ?? "")
+                    }
                 }
 
                 // Volume
@@ -418,6 +429,23 @@ struct MenuBarPlayerView: View {
     private func starCurrentTrack() {
         guard !trackMetadata.title.isEmpty,
               let manager = sonosManager.playHistoryManager else { return }
+        if let songID = trackMetadata.appleMusicCatalogSongID {
+            guard !appleMusicFavoriteInProgress else { return }
+            let title = trackMetadata.title
+            let artist = trackMetadata.artist
+            appleMusicFavoriteInProgress = true
+            Task {
+                defer { appleMusicFavoriteInProgress = false }
+                do {
+                    try await AppleMusicFavoriteSync.add(songID: songID)
+                    manager.starCurrentTrack(title: title, artist: artist)
+                    starRevision += 1
+                } catch {
+                    appleMusicFavoriteError = error.localizedDescription
+                }
+            }
+            return
+        }
         if let entry = manager.entries.last(where: {
             $0.title == trackMetadata.title && $0.artist == trackMetadata.artist
         }) {

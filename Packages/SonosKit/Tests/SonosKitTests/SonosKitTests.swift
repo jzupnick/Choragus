@@ -111,6 +111,18 @@ final class XMLResponseParserTests: XCTestCase {
 
 final class TrackMetadataTests: XCTestCase {
 
+    func testAppleMusicCatalogSongIDRequiresAppleServiceAndExactSongURI() {
+        var metadata = TrackMetadata()
+        metadata.trackURI = "x-sonosapi-hls-static:song%3a123456?sid=204&flags=8232"
+        XCTAssertEqual(metadata.appleMusicCatalogSongID, "123456")
+
+        metadata.trackURI = "x-sonosapi-hls-static:song%3a123456?sid=270&flags=8232"
+        XCTAssertNil(metadata.appleMusicCatalogSongID)
+
+        metadata.trackURI = "x-sonosapi-hls-static:album%3a123456?sid=204"
+        XCTAssertNil(metadata.appleMusicCatalogSongID)
+    }
+
     func testParseTimeString() {
         XCTAssertEqual(TrackMetadata.parseTimeString("0:03:45"), 225)
         XCTAssertEqual(TrackMetadata.parseTimeString("1:00:00"), 3600)

@@ -269,6 +269,13 @@ public struct TrackMetadata: Equatable {
         return Int(numStr)
     }
 
+    /// Exact Apple Music catalog song ID, only when the Sonos URI is
+    /// explicitly tagged with Apple's service ID.
+    public var appleMusicCatalogSongID: String? {
+        guard serviceID == ServiceID.appleMusic, let trackURI else { return nil }
+        return URIPrefix.appleMusicSongID(from: trackURI)
+    }
+
     // MARK: - RINCON Device ID Filtering
 
     public static func isDeviceID(_ value: String) -> Bool {

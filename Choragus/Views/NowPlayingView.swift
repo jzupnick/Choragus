@@ -75,6 +75,8 @@ struct NowPlayingView: View {
     private var transportState: TransportState { vm.transportState }
     private var trackMetadata: TrackMetadata { vm.trackMetadata }
     @State private var appleMusicNotFound = false
+    @State private var appleMusicFavoriteError: String?
+    @State private var appleMusicFavoriteInProgress = false
     private var playMode: PlayMode { vm.playMode }
     private var hasTrack: Bool { vm.hasTrack }
 
@@ -555,6 +557,15 @@ struct NowPlayingView: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                                 .tooltip(isCurrentTrackStarred ? L10n.statStarred : L10n.starThisTrack)
+                                .disabled(appleMusicFavoriteInProgress)
+                                .alert("Apple Music", isPresented: Binding(
+                                    get: { appleMusicFavoriteError != nil },
+                                    set: { if !$0 { appleMusicFavoriteError = nil } }
+                                )) {
+                                    Button("OK", role: .cancel) { appleMusicFavoriteError = nil }
+                                } message: {
+                                    Text(appleMusicFavoriteError ?? "")
+                                }
                             }
                         }
 
@@ -1075,6 +1086,22 @@ struct NowPlayingView: View {
     private func starCurrentTrack() {
         guard !trackMetadata.title.isEmpty,
               let manager = sonosManager.playHistoryManager else { return }
+        if let songID = trackMetadata.appleMusicCatalogSongID {
+            guard !appleMusicFavoriteInProgress else { return }
+            let title = trackMetadata.title
+            let artist = trackMetadata.artist
+            appleMusicFavoriteInProgress = true
+            Task {
+                defer { appleMusicFavoriteInProgress = false }
+                do {
+                    try await AppleMusicFavoriteSync.add(songID: songID)
+                    manager.starCurrentTrack(title: title, artist: artist)
+                } catch {
+                    appleMusicFavoriteError = error.localizedDescription
+                }
+            }
+            return
+        }
         // Find the most recent matching entry and toggle its star
         if let entry = manager.entries.last(where: {
             $0.title == trackMetadata.title && $0.artist == trackMetadata.artist

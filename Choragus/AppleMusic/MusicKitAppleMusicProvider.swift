@@ -1179,3 +1179,60 @@ public final class MusicKitAppleMusicProvider: AppleMusicProvider, @unchecked Se
 }
 
 #endif
+
+#if canImport(MusicKit)
+import MusicKit
+
+enum AppleMusicFavoriteSync {
+    enum SyncError: LocalizedError {
+        case notAuthorized
+        case invalidSongID
+        case requestFailed(Int)
+        case verificationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .notAuthorized: return "Allow Choragus to access Apple Music in System Settings, then try again."
+            case .invalidSongID: return "Choragus could not identify this exact Apple Music song."
+            case .requestFailed(let code): return "Apple Music returned an error (\(code))."
+            case .verificationFailed: return "Apple accepted the request, but Choragus could not confirm the song is in Favorites. Check Apple Music before retrying."
+            }
+        }
+    }
+
+    @MainActor
+    static func add(songID: String) async throws {
+        guard !songID.isEmpty, songID.allSatisfy(\.isNumber) else { throw SyncError.invalidSongID }
+        guard MusicAuthorization.currentStatus == .authorized else { throw SyncError.notAuthorized }
+        let storefront = try await MusicDataRequest.currentCountryCode
+        let baseURL = URL(string: "https://api.music.apple.com/v1")!
+        var favoriteComponents = URLComponents(url: baseURL.appending(path: "me/favorites"), resolvingAgainstBaseURL: false)!
+        favoriteComponents.queryItems = [URLQueryItem(name: "ids[songs]", value: songID)]
+        var addRequest = URLRequest(url: favoriteComponents.url!)
+        addRequest.httpMethod = "POST"
+        let addResponse = try await MusicDataRequest(urlRequest: addRequest).response()
+        guard (200..<300).contains(addResponse.urlResponse.statusCode) else {
+            throw SyncError.requestFailed(addResponse.urlResponse.statusCode)
+        }
+
+        let verifyURL = baseURL.appending(path: "catalog/\(storefront)/songs/\(songID)")
+        for attempt in 0..<5 {
+            var verifyComponents = URLComponents(url: verifyURL, resolvingAgainstBaseURL: false)!
+            verifyComponents.queryItems = [URLQueryItem(name: "extend", value: "inFavorites")]
+            let response = try await MusicDataRequest(urlRequest: URLRequest(url: verifyComponents.url!)).response()
+            guard (200..<300).contains(response.urlResponse.statusCode) else {
+                throw SyncError.requestFailed(response.urlResponse.statusCode)
+            }
+            if let payload = try JSONSerialization.jsonObject(with: response.data) as? [String: Any],
+               let rows = payload["data"] as? [[String: Any]],
+               let attributes = rows.first?["attributes"] as? [String: Any],
+               attributes["inFavorites"] as? Bool == true {
+                return
+            }
+            if attempt < 4 { try await Task.sleep(for: .seconds(1)) }
+        }
+        throw SyncError.verificationFailed
+    }
+}
+
+#endif
