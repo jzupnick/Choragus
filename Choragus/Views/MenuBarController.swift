@@ -120,6 +120,7 @@ struct MenuBarPlayerView: View {
     @State private var starRevision = 0
     @State private var appleMusicFavoriteError: String?
     @State private var appleMusicFavoriteInProgress = false
+    @State private var appleMusicFavoritedSongIDs: Set<String> = []
 
     private var selectedGroup: SonosGroup? {
         guard let id = selectedGroupID else { return sonosManager.groups.first }
@@ -421,6 +422,8 @@ struct MenuBarPlayerView: View {
     private var isCurrentTrackStarred: Bool {
         _ = starRevision // force dependency on revision to trigger re-eval
         guard !trackMetadata.title.isEmpty else { return false }
+        if let songID = trackMetadata.appleMusicCatalogSongID,
+           appleMusicFavoritedSongIDs.contains(songID) { return true }
         return sonosManager.playHistoryManager?.entries.contains {
             $0.title == trackMetadata.title && $0.artist == trackMetadata.artist && $0.starred
         } ?? false
@@ -429,8 +432,12 @@ struct MenuBarPlayerView: View {
     private func starCurrentTrack() {
         guard !trackMetadata.title.isEmpty,
               let manager = sonosManager.playHistoryManager else { return }
-        if let songID = trackMetadata.appleMusicCatalogSongID {
+        if trackMetadata.serviceID == ServiceID.appleMusic {
             guard !appleMusicFavoriteInProgress else { return }
+            guard let songID = trackMetadata.appleMusicCatalogSongID else {
+                appleMusicFavoriteError = AppleMusicFavoriteSync.SyncError.invalidSongID.localizedDescription
+                return
+            }
             let title = trackMetadata.title
             let artist = trackMetadata.artist
             appleMusicFavoriteInProgress = true
@@ -438,6 +445,7 @@ struct MenuBarPlayerView: View {
                 defer { appleMusicFavoriteInProgress = false }
                 do {
                     try await AppleMusicFavoriteSync.add(songID: songID)
+                    appleMusicFavoritedSongIDs.insert(songID)
                     manager.starCurrentTrack(title: title, artist: artist)
                     starRevision += 1
                 } catch {

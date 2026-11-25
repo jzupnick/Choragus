@@ -77,6 +77,7 @@ struct NowPlayingView: View {
     @State private var appleMusicNotFound = false
     @State private var appleMusicFavoriteError: String?
     @State private var appleMusicFavoriteInProgress = false
+    @State private var appleMusicFavoritedSongIDs: Set<String> = []
     private var playMode: PlayMode { vm.playMode }
     private var hasTrack: Bool { vm.hasTrack }
 
@@ -1086,8 +1087,12 @@ struct NowPlayingView: View {
     private func starCurrentTrack() {
         guard !trackMetadata.title.isEmpty,
               let manager = sonosManager.playHistoryManager else { return }
-        if let songID = trackMetadata.appleMusicCatalogSongID {
+        if trackMetadata.serviceID == ServiceID.appleMusic {
             guard !appleMusicFavoriteInProgress else { return }
+            guard let songID = trackMetadata.appleMusicCatalogSongID else {
+                appleMusicFavoriteError = AppleMusicFavoriteSync.SyncError.invalidSongID.localizedDescription
+                return
+            }
             let title = trackMetadata.title
             let artist = trackMetadata.artist
             appleMusicFavoriteInProgress = true
@@ -1095,6 +1100,7 @@ struct NowPlayingView: View {
                 defer { appleMusicFavoriteInProgress = false }
                 do {
                     try await AppleMusicFavoriteSync.add(songID: songID)
+                    appleMusicFavoritedSongIDs.insert(songID)
                     manager.starCurrentTrack(title: title, artist: artist)
                 } catch {
                     appleMusicFavoriteError = error.localizedDescription
@@ -1112,6 +1118,8 @@ struct NowPlayingView: View {
 
     private var isCurrentTrackStarred: Bool {
         guard !trackMetadata.title.isEmpty else { return false }
+        if let songID = trackMetadata.appleMusicCatalogSongID,
+           appleMusicFavoritedSongIDs.contains(songID) { return true }
         return sonosManager.playHistoryManager?.isStarred(
             title: trackMetadata.title,
             artist: trackMetadata.artist
